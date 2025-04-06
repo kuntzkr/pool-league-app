@@ -1,0 +1,55 @@
+# docker-compose.yml
+# Version tag removed (obsolete in Compose V2)
+
+services:
+  # Your Backend Service - RENAMED to 'server'
+  server: # <-- Changed from 'backend'
+    build: ./server # <-- CORRECTED PATH to your server code directory
+    container_name: pool-league-server # <-- Renamed container for clarity
+    ports:
+      - "8000:8000" # Example: Map host port 8000 to container port 8000 (adjust if your server uses a different port)
+    env_file:
+      - .env # Load variables from the .env file
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      PORT: 8000 # Tell the Node app to listen on port 8000 inside the container
+      # === Include GOOGLE vars if not already in .env and needed by build ===
+      # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      # GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # SESSION_SECRET: ${SESSION_SECRET}
+      # SERVER_BASE_URL: ${SERVER_BASE_URL} # Make sure this points to your server's accessible URL
+      # CLIENT_BASE_URL: ${CLIENT_BASE_URL} # Make sure this points to your client's accessible URL
+    depends_on:
+      - db # Ensures 'db' service starts before 'server'
+    networks:
+      - pool-network # Connect server to the custom network
+
+  # PostgreSQL Database Service (Remains the same)
+  db:
+    image: postgres:15
+    container_name: pool-league-db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${DB_HOST_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pool-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  pool-network:
+    driver: bridge
