@@ -39,4 +39,6 @@ export interface AppUser {
     email: string | null;
     display_name: string | null;
     created_at: Date;
+    role_id?: number;
+    role_name?: string;
 }

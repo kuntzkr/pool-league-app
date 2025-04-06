@@ -1,7 +1,10 @@
+// User types
 export interface User {
-  id: string; // Google ID is a string
+  id: string;
   displayName: string;
   email?: string;
+  role_id?: number;
+  role_name?: string;
 }
 
 export interface AuthStatusResponse {
@@ -9,14 +12,22 @@ export interface AuthStatusResponse {
   user: User | null;
 }
 
+// Team types
 export interface Team {
   id: string;
   name: string;
   venue?: string;
   division?: string;
-  players?: string[];
 }
 
+export interface TeamMember {
+  id: string;
+  displayName: string;
+  email?: string;
+  isCaptain: boolean;
+}
+
+// Match types
 export interface Match {
   id: string;
   date: string;
@@ -26,8 +37,22 @@ export interface Match {
   awayTeamName: string;
   venue: string;
   status: 'scheduled' | 'in_progress' | 'completed';
-  score?: {
-    home: number;
-    away: number;
-  };
+  homeScore?: number;
+  awayScore?: number;
+  createdBy?: string;
+  createdByName?: string;
+}
+
+// Game types
+export interface Game {
+  id: string;
+  matchId: string;
+  homePlayerId: string;
+  homePlayerName: string;
+  awayPlayerId: string;
+  awayPlayerName: string;
+  winnerId?: string;
+  winnerName?: string;
+  gameNumber: number;
+  gameType?: string;
 }

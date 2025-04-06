@@ -51,8 +51,7 @@ const App: React.FC = () => {
           element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />}
         />
 
-        {/* Protected Dashboard */}
-        {/* We ensure user is not null before rendering Dashboard */}
+        {/* Protected Dashboard - Same component for all users, admin features conditionally rendered */}
         <Route
           path="/"
           element={

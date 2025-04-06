@@ -3,8 +3,9 @@ import express, { Request, Response, NextFunction, Application } from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy, Profile as GoogleProfile, VerifyCallback } from 'passport-google-oauth20';
+import cors from 'cors';
 
-import pool, { AppUser } from './db'; 
+import pool, { AppUser } from './db';
 dotenv.config();
 
 const ensureEnvVar = (varName: string): string => {
@@ -27,6 +28,19 @@ const PORT = ensureEnvVar('PORT'); // No default needed now
 
 // --- Express App Initialization ---
 const app: Application = express();
+
+// --- Middleware Configuration ---
+// Add middleware to parse JSON request bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// --- CORS Configuration ---
+app.use(cors({
+  origin: CLIENT_BASE_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
 
 // --- Session Configuration ---
 const sessionOptions: session.SessionOptions = {
@@ -100,9 +114,18 @@ passport.deserializeUser(async (id: number, done) => {
     // 'id' is the user ID we stored via serializeUser
     console.log(`Deserializing user with ID: ${id}`);
     try {
-        const { rows } = await pool.query<AppUser>('SELECT * FROM users WHERE id = $1', [id]);
+        // Join with roles table to get role information
+        const query = `
+            SELECT u.*, r.name as role_name
+            FROM users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE u.id = $1
+        `;
+        const { rows } = await pool.query<AppUser>(query, [id]);
+
         if (rows.length > 0) {
-            done(null, rows[0]); // Found user, pass the full user object
+            console.log('User deserialized with role info:', rows[0].role_id, rows[0].role_name);
+            done(null, rows[0]); // Found user, pass the full user object with role info
         } else {
             // User not found in DB (perhaps deleted?), treat as unauthenticated
             console.warn(`User with ID ${id} not found during deserialization.`);
@@ -126,10 +149,11 @@ declare global {
 
 // --- Routes ---
 
-// Basic API test route
-app.get('/api', (req: Request, res: Response) => {
-  res.json({ message: 'API is working!' });
-});
+// Import API routes
+import apiRoutes from './routes/api';
+
+// Use API routes
+app.use('/api', apiRoutes);
 
 // --- Authentication Routes ---
 
@@ -151,6 +175,7 @@ app.get('/api/auth/status', (req: Request, res: Response) => {
   if (req.isAuthenticated() && req.user) {
     // req.user is now the AppUser object from the database
     console.log('Auth status check: User is authenticated:', req.user.display_name);
+    console.log('User role info:', req.user.role_id, req.user.role_name);
     res.json({
       authenticated: true,
       // Return data directly from our AppUser object
@@ -159,8 +184,9 @@ app.get('/api/auth/status', (req: Request, res: Response) => {
         displayName: req.user.display_name,
         email: req.user.email,
         googleId: req.user.google_id, // Expose if needed by client
-        createdAt: req.user.created_at
-        // Add other relevant fields from AppUser
+        createdAt: req.user.created_at,
+        role_id: req.user.role_id,
+        role_name: req.user.role_name
       }
     });
   } else {
@@ -176,7 +202,8 @@ app.get('/api/auth/logout', (req: Request, res: Response) => {
       console.error('Error during logout:', err);
       return res.status(500).json({ error: 'Logout failed' });
     }
-    res.json({ success: true, message: 'Logged out successfully' });
+    // Redirect to the client login page instead of returning JSON
+    res.redirect(CLIENT_BASE_URL + '/login');
   });
 });
 
@@ -187,16 +214,24 @@ app.get('/auth/failure', (req: Request, res: Response) => {
 
 
 // --- Start Server ---
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   // Use the PORT variable which comes from the environment
   console.log(`Server listening on port ${PORT} (TypeScript)`);
 
-  // Test DB connection on startup (optional)
-  pool.query('SELECT NOW()', (err, res) => {
-      if (err) {
-          console.error("!!! Failed to connect to database on startup:", err);
-      } else {
-          console.log("--- Database connection verified on startup. Current time:", res.rows[0].now);
-      }
-  });
+  // Test DB connection on startup
+  try {
+    const res = await pool.query('SELECT NOW()');
+    console.log("Connected to PostgreSQL database");
+    console.log("--- Database connection verified on startup. Current time:", res.rows[0].now);
+
+    // Enable if you need to sync db changes
+    try {
+      // await initializeDatabase();
+    } catch (dbInitError) {
+      console.error("Error initializing database schema:", dbInitError);
+      // Continue running the server even if schema initialization fails
+    }
+  } catch (err) {
+    console.error("!!! Failed to connect to database on startup:", err);
+  }
 });
